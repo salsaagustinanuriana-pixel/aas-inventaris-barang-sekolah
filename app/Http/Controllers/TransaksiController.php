@@ -5,174 +5,147 @@ use App\Models\Barang;
 use App\Models\Transaksi;
 use App\Models\TransaksiDetail;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class TransaksiController extends Controller
 {
-    /**
-     * Tampilkan daftar transaksi.
-     */
+    // Halaman daftar transaksi
     public function index()
     {
-        $transaksi = Transaksi::with('details.barang')->latest()->paginate(10);
+        $transaksi = Transaksi::all();
         return view('transaksi.index', compact('transaksi'));
     }
 
-    /**
-     * Form tambah transaksi.
-     */
+    // Form tambah transaksi
     public function create()
     {
         $barang = Barang::all();
-        return view('transaksi.create', compact('barang'));
+        return view('transaksi.create', compact( 'barang'));
     }
 
-    /**
-     * Simpan transaksi baru.
-     */
+    // Simpan transaksi baru
     public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'tanggal'           => 'required|date',
-            'jenis'             => 'required|in:masuk,keluar',
-            'keterangan'        => 'nullable|string',
-            'items'             => 'required|array|min:1',
-            'items.*.barang_id' => 'required|exists:barang,id',
-            'items.*.jumlah'    => 'required|integer|min:1',
-        ]);
+{
+    $request->validate([
+        'tanggal' => 'required|date',
+        'jenis'   => 'required|string', // fleksibel: cash, credit, dll
+        'bayar'   => 'required|numeric|min:0',
+    ]);
 
-        DB::transaction(function () use ($validated) {
-            $transaksi = Transaksi::create([
-                'kode_transaksi' => strtoupper('TRX-' . Str::random(8)),
-                'tanggal'        => $validated['tanggal'],
-                'jenis'          => $validated['jenis'],
-                'keterangan'     => $validated['keterangan'] ?? null,
+    $total = 0;
+
+    // buat transaksi dulu
+    $transaksi = Transaksi::create([
+        'kode_transaksi' => 'TRX' . time(),
+        'tanggal'        => $request->tanggal,
+        'jenis'          => $request->jenis,
+        'bayar'          => $request->bayar,
+        'total'          => 0,
+        'kembalian'      => 0,
+    ]);
+
+    // hitung total dari barang
+    if ($request->barang_id) {
+        foreach ($request->barang_id as $index => $barangId) {
+            $barang   = Barang::find($barangId);
+            $jumlah   = $request->jumlah[$index] ?? 1;
+            $subtotal = $barang->harga_satuan * $jumlah;
+            $total += $subtotal;
+
+            TransaksiDetail::create([
+                'transaksi_id' => $transaksi->id,
+                'barang_id'    => $barangId,
+                'jumlah'       => $jumlah,
+                'subtotal'     => $subtotal,
             ]);
-
-            foreach ($validated['items'] as $item) {
-                $barang = Barang::lockForUpdate()->find($item['barang_id']);
-                $jumlah = (int) $item['jumlah'];
-
-                if ($validated['jenis'] === 'masuk') {
-                    $barang->stok += $jumlah;
-                } else {
-                    if ($barang->stok < $jumlah) {
-                        throw new \RuntimeException("Stok barang '{$barang->nama_barang}' tidak mencukupi.");
-                    }
-                    $barang->stok -= $jumlah;
-                }
-                $barang->save();
-
-                TransaksiDetail::create([
-                    'transaksi_id' => $transaksi->id,
-                    'barang_id'    => $barang->id,
-                    'jumlah'       => $jumlah,
-                ]);
-            }
-        });
-
-        return redirect()->route('transaksi.index')->with('success', 'Transaksi berhasil disimpan');
+        }
     }
 
-    /**
-     * Detail transaksi.
-     */
-    public function show(Transaksi $transaksi)
-    {
-        $transaksi->load('details.barang');
-        return view('transaksi.show', compact('transaksi'));
+    // hitung kembalian
+    $kembalian = $request->bayar - $total;
+
+    $transaksi->update([
+        'total'     => $total,
+        'kembalian' => $kembalian > 0 ? $kembalian : 0,
+    ]);
+
+    return redirect()->route('transaksi.index')->with('success', 'Transaksi berhasil ditambahkan');
+}
+
+// Update transaksi
+public function update(Request $request, $id)
+{
+    $request->validate([
+        'tanggal' => 'required|date',
+        'jenis'   => 'required|string',
+        'bayar'   => 'required|numeric|min:0',
+    ]);
+
+    $transaksi = Transaksi::findOrFail($id);
+
+    $total = 0;
+
+    // update transaksi utama dulu
+    $transaksi->update([
+        'tanggal' => $request->tanggal,
+        'jenis'   => $request->jenis,
+        'bayar'   => $request->bayar,
+    ]);
+
+    // hapus detail lama
+    $transaksi->details()->delete();
+
+    // simpan detail baru
+    if ($request->items) {
+        foreach ($request->items as $item) {
+            $barang   = Barang::find($item['barang_id']);
+            $jumlah   = $item['jumlah'] ?? 1;
+            $subtotal = $barang->harga_satuan * $jumlah;
+            $total   += $subtotal;
+
+            TransaksiDetail::create([
+                'transaksi_id' => $transaksi->id,
+                'barang_id'    => $item['barang_id'],
+                'jumlah'       => $jumlah,
+                'subtotal'     => $subtotal,
+            ]);
+        }
     }
 
-    /**
-     * Form edit transaksi.
-     */
-    public function edit(Transaksi $transaksi)
+    // hitung kembalian
+    $kembalian = $request->bayar - $total;
+
+    $transaksi->update([
+        'total'     => $total,
+        'kembalian' => $kembalian > 0 ? $kembalian : 0,
+    ]);
+
+    return redirect()->route('transaksi.index')->with('success', 'Transaksi berhasil diperbarui');
+}
+
+
+    // Form edit transaksi
+    public function edit($id)
     {
-        $barang = Barang::all();
-        $transaksi->load('details.barang');
+        $transaksi = Transaksi::with('details')->findOrFail($id);
+        $barang    = Barang::all();
         return view('transaksi.edit', compact('transaksi', 'barang'));
     }
 
-    /**
-     * Update transaksi.
-     */
-    public function update(Request $request, Transaksi $transaksi)
+    // Update transaksi
+   
+
+    // Detail transaksi
+    public function show($id)
     {
-        $validated = $request->validate([
-            'tanggal'           => 'required|date',
-            'jenis'             => 'required|in:masuk,keluar',
-            'keterangan'        => 'nullable|string',
-            'items'             => 'required|array|min:1',
-            'items.*.barang_id' => 'required|exists:barang,id',
-            'items.*.jumlah'    => 'required|integer|min:1',
-        ]);
-
-        DB::transaction(function () use ($validated, $transaksi) {
-            // rollback stok lama
-            foreach ($transaksi->details as $detail) {
-                $barang = Barang::lockForUpdate()->find($detail->barang_id);
-                if ($transaksi->jenis === 'masuk') {
-                    $barang->stok -= $detail->jumlah;
-                } else {
-                    $barang->stok += $detail->jumlah;
-                }
-                $barang->save();
-            }
-            $transaksi->details()->delete();
-
-            // update transaksi
-            $transaksi->update([
-                'tanggal'    => $validated['tanggal'],
-                'jenis'      => $validated['jenis'],
-                'keterangan' => $validated['keterangan'] ?? null,
-            ]);
-
-            // apply stok baru
-            foreach ($validated['items'] as $item) {
-                $barang = Barang::lockForUpdate()->find($item['barang_id']);
-                $jumlah = (int) $item['jumlah'];
-
-                if ($validated['jenis'] === 'masuk') {
-                    $barang->stok += $jumlah;
-                } else {
-                    if ($barang->stok < $jumlah) {
-                        throw new \RuntimeException("Stok barang '{$barang->nama_barang}' tidak mencukupi.");
-                    }
-                    $barang->stok -= $jumlah;
-                }
-                $barang->save();
-
-                TransaksiDetail::create([
-                    'transaksi_id' => $transaksi->id,
-                    'barang_id'    => $barang->id,
-                    'jumlah'       => $jumlah,
-                ]);
-            }
-        });
-
-        return redirect()->route('transaksi.index')->with('success', 'Transaksi berhasil diperbarui');
+        $transaksi = Transaksi::with([ 'details.barang'])->findOrFail($id);
+        return view('transaksi.show', compact('transaksi'));
     }
 
-    /**
-     * Hapus transaksi.
-     */
-    public function destroy(Transaksi $transaksi)
+    // Hapus transaksi
+    public function destroy($id)
     {
-        DB::transaction(function () use ($transaksi) {
-            foreach ($transaksi->details as $detail) {
-                $barang = Barang::lockForUpdate()->find($detail->barang_id);
-                if ($transaksi->jenis === 'masuk') {
-                    $barang->stok -= $detail->jumlah;
-                } else {
-                    $barang->stok += $detail->jumlah;
-                }
-                $barang->save();
-            }
-            $transaksi->details()->delete();
-            $transaksi->delete();
-        });
-
+        $transaksi = Transaksi::findOrFail($id);
+        $transaksi->delete();
         return redirect()->route('transaksi.index')->with('success', 'Transaksi berhasil dihapus');
     }
 }
