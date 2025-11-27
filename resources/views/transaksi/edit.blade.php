@@ -1,7 +1,7 @@
 @extends('layouts.dashboard')
 
 @section('content')
-<div class="container mt-4">
+<div class="container">
     <h4>Edit Transaksi</h4>
 
     @if ($errors->any())
@@ -31,22 +31,10 @@
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-md-4 mb-3">
-                <label>Total</label>
-                <input type="number" name="total" class="form-control" value="{{ old('total',$transaksi->total) }}" min="0" required>
-            </div>
-            <div class="col-md-4 mb-3">
-                <label>Bayar</label>
-                <input type="number" name="bayar" class="form-control" value="{{ old('bayar',$transaksi->bayar) }}" min="0" required>
-            </div>
-            <div class="col-md-4 mb-3">
-                <label>Kembalian</label>
-                <input type="number" name="kembalian" class="form-control" value="{{ old('kembalian',$transaksi->kembalian) }}" min="0" readonly>
-            </div>
+        <div class="mb-3">
+            <label>Keterangan</label>
+            <textarea name="keterangan" class="form-control">{{ old('keterangan',$transaksi->keterangan) }}</textarea>
         </div>
-
-
 
         <hr>
         <h5>Detail Barang</h5>
@@ -76,4 +64,37 @@
         <a href="{{ route('transaksi.index') }}" class="btn btn-secondary mt-2">Batal</a>
     </form>
 </div>
+
+<script>
+    let idx = {
+        {
+            $transaksi - > details - > count()
+        }
+    };
+
+    function addItemRow() {
+        const container = document.getElementById('items');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 item-row';
+        row.innerHTML = `
+        <div class="col-md-6">
+            <select name="items[${idx}][barang_id]" class="form-control" required>
+                <option value="">-- Pilih Barang --</option>
+                @foreach($barang as $b)
+                <option value="{{ $b->id }}">{{ $b->nama_barang }} (Stok: {{ $b->stok }})</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-md-3">
+            <input type="number" name="items[${idx}][jumlah]" class="form-control" placeholder="Jumlah" min="1" required>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+            <button type="button" class="btn btn-danger" onclick="this.closest('.item-row').remove()">Hapus</button>
+        </div>
+    `;
+        container.appendChild(row);
+        idx++;
+    }
+
+</script>
 @endsection

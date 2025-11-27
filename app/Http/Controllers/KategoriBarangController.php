@@ -6,20 +6,17 @@ use Illuminate\Http\Request;
 
 class KategoriBarangController extends Controller
 {
-    
     public function index()
     {
         $kategoribarang = KategoriBarang::all();
         return view('kategoribarang.index', compact('kategoribarang'));
     }
 
-   
     public function create()
     {
         return view('kategoribarang.create');
     }
 
-   
     public function store(Request $request)
     {
         $request->validate([
@@ -50,10 +47,16 @@ class KategoriBarangController extends Controller
         return redirect()->route('kategoribarang.index')->with('success', 'Kategori berhasil diupdate');
     }
 
-   
     public function destroy(KategoriBarang $kategoribarang)
     {
+        // cek apakah kategori masih dipakai di tabel barang
+        if ($kategoribarang->barang()->exists()) {
+            return redirect()->route('kategoribarang.index')
+                ->with('error', 'Kategori tidak bisa dihapus karena masih digunakan pada barang.');
+        }
+
         $kategoribarang->delete();
         return redirect()->route('kategoribarang.index')->with('success', 'Kategori berhasil dihapus');
     }
 }
+    

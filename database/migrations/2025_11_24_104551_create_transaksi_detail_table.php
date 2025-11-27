@@ -8,14 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('transaksi_detail', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('transaksi_id')->constrained('transaksi')->onDelete('cascade');
-            $table->foreignId('barang_id')->constrained('barang')->onDelete('cascade');
-            $table->integer('jumlah');
-            $table->decimal('subtotal', 12, 2);
-            $table->timestamps();
-        });
+       Schema::create('transaksi_detail', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('transaksi_id')->constrained('transaksi')->onDelete('cascade');
+    $table->foreignId('barang_id')->constrained('barang')->onDelete('cascade');
+    $table->integer('qty'); // jumlah barang
+    $table->decimal('subtotal', 20, 2)->default(0); // harga_satuan * qty
+    $table->timestamps();
+});
+
     }
 
     public function down(): void

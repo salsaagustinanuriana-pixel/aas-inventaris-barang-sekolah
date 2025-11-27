@@ -5,24 +5,20 @@ use Illuminate\Support\Facades\Schema;
 
 class CreateTransaksiTable extends Migration
 {
-   
-   
-public function up()
-{
-    Schema::create('transaksi', function (Blueprint $table) {
-    $table->id(); // auto_increment hanya di sini
+    public function up()
+    {
+      Schema::create('transaksi', function (Blueprint $table) {
+    $table->id();
     $table->string('kode_transaksi')->unique();
     $table->date('tanggal');
-    $table->string('jenis');                         // cash, credit, transfer, dll
-    $table->decimal('total', 20, 2)->default(0);     // total transaksi
-    $table->decimal('bayar', 20, 2)->default(0);     // nominal bayar
-    $table->decimal('kembalian', 20, 2)->default(0); // hasil bayar - total
-    $table->text('keterangan')->nullable();
+    $table->enum('jenis', ['masuk', 'keluar']);
+    $table->integer('total')->default(0);
+    $table->integer('bayar')->default(0);
+    $table->integer('kembalian')->default(0); 
     $table->timestamps();
 });
 
-}
-
+    }
 
     public function down()
     {

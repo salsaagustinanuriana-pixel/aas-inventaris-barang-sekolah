@@ -3,7 +3,7 @@
 @section('content')
 <div class="container">
     <h2>Tambah Barang</h2>
-    <div class="alert alert-danger">
+    <div class="alert ">
         <form action="{{ route('barang.store') }}" method="POST">
             @csrf
             <div class="mb-3">
